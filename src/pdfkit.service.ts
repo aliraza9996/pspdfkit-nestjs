@@ -1,11 +1,10 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib';
 import { readFileSync, writeFileSync } from 'fs';
 import { HttpService } from '@nestjs/axios';
-import * as path from 'path';
-import * as fs from 'fs';
 import { FormTemplateService } from './template.service';
 import { forwardRef } from '@nestjs/common';
+import { PDFDocument, PDFField, drawRectangle, degrees, drawImage, rgb } from 'pdf-lib';
+
 
 @Injectable()
 export class PdfKitService {
@@ -13,227 +12,156 @@ export class PdfKitService {
     private readonly httpService: HttpService,
     @Inject(forwardRef(() => FormTemplateService))
     private readonly formTemplateService: FormTemplateService,
-    ) {}
+  ) {}
     
+  // Fetch signature or image from any other URL
   async getImageData(url) {
     const response = await this.httpService.get(url, { responseType: 'arraybuffer' }).toPromise();
-    console.log(response.data)
     return response.data;
   }
 
-  async fetchSignatre() {
-    const response = await this.httpService.get('https://showgroundslive.com/webservice/FetchDigitalSignatures?customer_id=15&sig_id=1&hash=1212').toPromise();
-    const base64string = response.data.data;
-    const base64Buffer = Buffer.from(base64string, 'base64');
-    return base64Buffer;
+  // Fetch signature from our db
+  async fetchSignatre(url) {
+    if (url) {
+      const response = await this.httpService.get(url).toPromise();
+      const base64string = response.data.data;
+      const base64Buffer = Buffer.from(base64string, 'base64');
+      return base64Buffer;
+    }
   }
 
-  getTemplate = async () => {
-    const templateBytes = readFileSync('templates/document (3).pdf');
-    const pdfDoc = await PDFDocument.load(templateBytes);
-    const pages = pdfDoc.getPages();
-    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
-
-    const firstPage = pages[0];
-
-    // // Write text vertically in the centre
-    // const { width, height } = firstPage.getSize()
-    // firstPage.drawText('Created by JTPL!', {
-    //   x: 5,
-    //   y: height / 2 + 300,
-    //   size: 50,
-    //   font: helveticaFont,
-    //   color: rgb(0.95, 0.1, 0.1),
-    //   rotate: degrees(-45),
-    // })
-
-
-    // Create Form
-    const page = pdfDoc.addPage([550, 750])
-    const form = pdfDoc.getForm()
-    page.drawText('Enter your favorite superhero:', { x: 50, y: 700, size: 20 })
-    page.drawText('Enter your favorite superhero:', { x: 50, y: 800, size: 20 })
-
-    page.drawText('Enter your favorite superhero:', { x: 50, y: 900, size: 20 })
-    page.drawText('Enter your favorite superhero:', { x: 50, y: 1000, size: 20 })
-    page.drawText('Enter your favorite superhero:', { x: 50, y: 1100, size: 20 })
-    page.drawText('Enter your favorite superhero:', { x: 50, y: 7122, size: 20 })
-
-    const ownerNameField  = form.createTextField('owner_name')
-    ownerNameField.setText('One Punch Manaaaaaaaaaaaaaaaaaaaa')
-    ownerNameField.addToPage(page, { x: 55, y: 640 })
-    const pdfBytes = await pdfDoc.save()
-    writeFileSync('templates/editedpdf.pdf', pdfBytes)
-    return 'true';
-  }
-
-  async fillForm() {
-    const templateBytes = readFileSync('templates/realsample1.pdf');
-    const pdfDoc = await PDFDocument.load(templateBytes);
-    const form = pdfDoc.getForm()
-    const fields = form.getFields();
-
-        
-    const fieldNames = fields.map(field => field.getName());
-    console.log(fieldNames)
-    // const marioUrl = 'https://pdf-lib.js.org/assets/small_mario.png'
-    // const marioImageBytes = await fetch(marioUrl).then(res => res.arrayBuffer())
-  
-    const emblemUrl = 'https://pdf-lib.js.org/assets/mario_emblem.png'
-    // const emblemImageBytes = await fetch(emblemUrl).then(res => res.arrayBuffer())
-    const emblemImageBytes = await this.getImageData(emblemUrl)
-
-    // const marioImage = await pdfDoc.embedPng(marioImageBytes)
-    const emblemImage = await pdfDoc.embedPng(emblemImageBytes)
-  
-    const imageFields = form.getButton('image')
-    imageFields.setImage(emblemImage)
-
-    const image2 = form.getButton('image2')
-    image2.setImage(emblemImage)
-
-    // const image4 = form.getButton('image4')
-    // image4.setImage(emblemImage)
-
-
-    // const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    // const page = pdfDoc.getPages()[0];
-    // const textField = form.createTextField('owner_name');
-    // textField.setText(''); // Set initial text value here
-    // textField.addToPage(page, {
-    //   x: 50, // X coordinate of the text field
-    //   y: 700, // Y coordinate of the text field
-    //   width: 500, // Width of the text field
-    //   height: 20, // Height of the text field
-    //   font: helveticaFont,
-    //   // fontSize: 12,
-    // });
-    // const nameField = form.getTextField('owner_name')
-    // nameField.setText('ALI RAZA JAVAID')
-
-
-
-    const agreement = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer mollis, mi laoreet tempor varius, metus turpis tristique sapien, id consequat eros nisi a quam. Nullam ornare orci non nibh iaculis, sit amet porta nisi blandit. Etiam sed eros id justo pellentesque dignissim vitae eget tortor. Aenean auctor at turpis nec sagittis. Nulla eu nulla ligula. Duis dignissim, massa sed mattis auctor, nulla urna rhoncus ipsum, vel luctus justo nisi eu metus. Curabitur est orci, ultricies nec pretium sit amet, blandit eget lectus. Pellentesque eu placerat nulla. Praesent eu erat suscipit urna dictum molestie. Etiam vitae orci eget ante tempor pulvinar. Aliquam tempor sagittis sapien interdum congue. Cras vehicula nisi dictum tellus ultrices, sit amet semper dui faucibus. Ut ipsum orci, condimentum eget sem vel, suscipit aliquet urna. Quisque malesuada nibh laoreet, tincidunt purus vitae, aliquam ante. Maecenas velit arcu, ultricies quis mollis id, pulvinar maximus ipsum. Mauris congue efficitur nisi tincidunt ultricies. Duis eget sollicitudin lacus. Aliquam ut est eu neque posuere condimentum. Ut ac elit porta ligula convallis tristique convallis at sem. Duis et elementum massa, nec sagittis turpis. Morbi eget vehicula est. Suspendisse imperdiet lacus felis, sit amet molestie turpis congue nec. Duis malesuada mi et libero luctus, dapibus pretium augue blandit. Aliquam odio massa, tempor vel blandit sed, laoreet nec dolor. Nullam eget felis risus.     Integer scelerisque, orci sit amet dignissim egestas, nisl tellus sagittis nunc, at tristique felis massa non lectus. Integer semper metus nisi, accumsan tincidunt sem scelerisque vel. Donec fringilla blandit neque quis eleifend. In ullamcorper velit mauris, ultrices pellentesque tortor blandit non. Mauris gravida orci interdum velit condimentum, vel feugiat sapien interdum. Aliquam luctus ex at leo elementum luctus. Quisque bibendum vulputate congue. Proin imperdiet ornare neque, non tristique lectus. Interdum et malesuada fames ac ante ipsum primis in faucibus. Quisque vitae metus a ipsum pellentesque tempus in a velit. Morbi vel arcu ut lectus faucibus facilisis quis quis sem. Nam ac ipsum porttitor, porta dui vitae, vestibulum purus. Suspendisse id lacus id mauris convallis lobortis. Maecenas eget consequat lectus, ut tempor massa. Mauris efficitur semper ultricies."
-    const agreementField = form.getTextField('agreement');
-    agreementField.setText(agreement);
+  // Fill entry template
+  async fillBlankEntry(filePath, data) {
+    // Read file
+    if (!filePath && data < 0) {
+      return {message: 'Please select entry first'}
+    }
     
+    // Read the template
+    const templateBytes = readFileSync(filePath);
 
+    // Load PDF
+    const pdfDoc = await PDFDocument.load(templateBytes);
+    const form = pdfDoc.getForm() // Get form from PDF
+    const pages = pdfDoc.getPages(); // Get all pages from the pdf
+    const pageOne = pages[0]; // Can get page 1 like this
 
-    // const nameField = form.getTextField('CharacterName 2')
-    // const ageField = form.getTextField('Age')
-    // const heightField = form.getTextField('Height')
-    // const weightField = form.getTextField('Weight')
-    // const eyesField = form.getTextField('Eyes')
-    // const skinField = form.getTextField('Skin')
-    // const hairField = form.getTextField('Hair')
+    //  Get form fields
+    const fields = form.getFields(); // Get PDF form fields
+    const fieldNames = fields.map(field => field.getName());  // Get field names
+
+    const signatures = {};
+
+    // const ownerSignatureBytes = await this.getImageData(ownerSignatureUrl); // If getting image from any other URL
+    const ownerSignatureBytes = await this.fetchSignatre(data.owner_signature_url);
+    const ownerSignatureImage = await pdfDoc.embedPng(ownerSignatureBytes);
+
+    const riderSignatureBytes = await this.fetchSignatre(data.rider_signature_url);
+    const riderSignatureImage = await pdfDoc.embedPng(riderSignatureBytes);
+
+    const trainerSignatureBytes = await this.fetchSignatre(data.trainer_signature_url);
+    const trainerSignatureImage = await pdfDoc.embedPng(trainerSignatureBytes);
+
+    // Get signatures later from db
+    signatures['owner_signature_img'] = ownerSignatureImage;
+    signatures['rider_signature_img'] = riderSignatureImage;
+    signatures['trainer_signature_img'] = trainerSignatureImage;
+
+    const textFields = fieldNames.filter((name) => !name.includes('img')) // get text fields except for the ones which have img in their name (define in dictionary)
+    const imageFields = fieldNames.filter((name) => name.includes('img')) // get text fields for the ones which have img in their name (define in dictionary)
+
+    textFields.map((field) => {
+      const nameField = form.getTextField(field);
+      if (nameField) {
+        nameField.setText(data[field])
+      }
+    })
+
+    // Place images on the pdf buttons
+    imageFields.map((fieldName) => {
+      const imageField = form.getButton(fieldName) // Like form.getButton('owner_signature_img')
+      if (signatures[fieldName] && imageField) {
+        imageField.setImage(signatures[fieldName])
+      }
+    })
+
+    // Add image to button field
+      // const ownerSignatureField = form.getButton('owner_signature_img')
+      // ownerSignatureField.setImage(ownerSignatureImage)
+
+    // ****** Add image into signature field code start here ******
+    // const signatureField = form.getSignature('owner_signature_img');
+    // signatureField.acroField.getWidgets().forEach((widget) => {
+    //   const { context } = widget.dict;
+    //   const { width, height } = widget.getRectangle();
   
-    // const alliesField = form.getTextField('Allies')
-    // const factionField = form.getTextField('FactionName')
-    // const backstoryField = form.getTextField('Backstory')
-    // const traitsField = form.getTextField('Feat+Traits')
-    // const treasureField = form.getTextField('Treasure')
+    //   const appearance = [
+    //     ...drawRectangle({
+    //       x: 0,
+    //       y: 0,
+    //       width,
+    //       height,
+    //       borderWidth: 0,
+    //       color: rgb(1, 1, 1),
+    //       borderColor: rgb(1, 0.5, 0.75),
+    //       rotate: degrees(0),
+    //       xSkew: degrees(0),
+    //       ySkew: degrees(0),
+    //     }),
   
-    // // const characterImageField = form.getButton('CHARACTER IMAGE')
-    // const factionImageField = form.getButton('Faction Symbol Image')
+    //     ...drawImage('owner_signature_img', {
+    //       x: 5,
+    //       y: 5,
+    //       width: width - 10,
+    //       height: height - 10,
+    //       rotate: degrees(0),
+    //       xSkew: degrees(0),
+    //       ySkew: degrees(0),
+    //     }),
+    //   ];
+    
+    //   const stream = context.formXObject(appearance, {
+    //     Resources: { XObject: { ['owner_signature_img']: ownerSignatureImage.ref } },
+    //     BBox: context.obj([0, 0, width, height]),
+    //     Matrix: context.obj([1, 0, 0, 1, 0, 0]),
+    //   });
+    //   const streamRef = context.register(stream);
   
-    // nameField.setText('Mario')
-    // ageField.setText('24 years')
-    // heightField.setText(`5' 1"`)
-    // weightField.setText('196 lbs')
-    // eyesField.setText('blue')
-    // skinField.setText('white')
-    // hairField.setText('brown')
+    //   widget.setNormalAppearance(streamRef);
+    // });
+    // ****** Add image into signature field code ends here ******
+
+    form.flatten(); // Disable input fields in the form
   
-    // // characterImageField.setImage(marioImage)
-  
-    // alliesField.setText(
-    //   [
-    //     `Allies:`,
-    //     `  • Princess Daisy`,
-    //     `  • Princess Peach`,
-    //     `  • Rosalina`,
-    //     `  • Geno`,
-    //     `  • Luigi`,
-    //     `  • Donkey Kong`,
-    //     `  • Yoshi`,
-    //     `  • Diddy Kong`,
-    //     ``,
-    //     `Organizations:`,
-    //     `  • Italian Plumbers Association`,
-    //   ].join('\n'),
-    // )
-  
-    // factionField.setText(`Mario's Emblem`)
-  
-    // factionImageField.setImage(emblemImage)
-  
-    // agreementField.setText(
-    //   [
-    //     `Mario is a fictional character in the Mario video game franchise, `,
-    //     `owned by Nintendo and created by Japanese video game designer Shigeru `,
-    //     `Miyamoto. Serving as the company's mascot and the eponymous `,
-    //     `protagonist of the series, Mario has appeared in over 200 video games `,
-    //     `since his creation. Depicted as a short, pudgy, Italian plumber who `,
-    //     `resides in the Mushroom Kingdom, his adventures generally center `,
-    //     `upon rescuing Princess Peach from the Koopa villain Bowser. His `,
-    //     `younger brother and sidekick is Luigi.`,
-    //   ].join('\n'),
-    // )
-  
-    // traitsField.setText(
-    //   [
-    //     `Mario can use three basic three power-ups:`,
-    //     `  • the Super Mushroom, which causes Mario to grow larger`,
-    //     `  • the Fire Flower, which allows Mario to throw fireballs`,
-    //     `  • the Starman, which gives Mario temporary invincibility`,
-    //   ].join('\n'),
-    // )
-    // treasureField.setText(['• Gold coins', '• Treasure chests'].join('\n'))
-  
-    form.flatten();
     const pdfBytes = await pdfDoc.save()
-
-
-    writeFileSync('templates/realpz.pdf', pdfBytes)
-
+    return Buffer.from(pdfBytes).toString('base64');  // Convert to base64 string
   }
 
-  async getPdfList() {
-    const pdfDirectory = path.join(__dirname, '..', 'templates');
+  async generateMultiplePdfs(filePath, entryIds) {
+    if (entryIds.length === 1 ){
+      const data = await this.formTemplateService.getDataForPdfGeneration(entryIds[0])
+      return await this.fillBlankEntry(filePath, data)
+    } else if (entryIds.length > 1) { // If entry ids are more than 1, then get fill template for all entries and then combine them to 1 pdf
+      const pdfDoc = await PDFDocument.create();
+      for (let entryId of entryIds) {
+        // Get data for entry id, will fetch from db later
+        const data = await this.formTemplateService.getDataForPdfGeneration(entryId)
 
-    const files = await fs.promises.readdir(pdfDirectory);
-    const pdfFiles = files.filter(file => path.extname(file) === '.pdf');
-    return pdfFiles;
+        if(data) {
+          const response = await this.fillBlankEntry(filePath, data) // Fill the template with data and get a base64 pdf buffer in response
+          const tempDoc = await PDFDocument.load(response.toString());
+          const [tempPage] = await pdfDoc.copyPages(tempDoc, [0]);
+          pdfDoc.addPage(tempPage);
+        }
+      }
 
-  }
+      const joinedPdfBytes = await pdfDoc.save();
+      return Buffer.from(joinedPdfBytes).toString('base64');  // Convert to base64 string
 
-  async getPdfFile(filename) {
-    const pdfDirectory = path.join(__dirname, '..', 'templates');
-    const filePath = path.join(pdfDirectory, filename);
-    let fileBuffer = null;
-    try {
-      fileBuffer = await fs.promises.readFile(filePath);
-    } catch (e) {
-      console.log(e)
     }
-
-    return Buffer.from(fileBuffer).toString('base64');
   }
-
- 
-
-  async generatePdf(filename) {
-    const pdfDirectory = path.join(__dirname, '..', 'templates');
-    const filePath = path.join(pdfDirectory, filename);
-
-    const fileExists = fs.existsSync(filePath);
-    if (!fileExists) {
-      return {message: "File does not exist"}
-    }
-
-    return await this.formTemplateService.RtoTemplateFill(filePath);
-  }
-
+  
+  
 }
 
 

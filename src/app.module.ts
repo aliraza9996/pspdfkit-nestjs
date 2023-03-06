@@ -5,9 +5,10 @@ import { HttpModule } from '@nestjs/axios';
 import { DocumentService } from './document.service';
 import { PdfKitService } from './pdfkit.service';
 import { FormTemplateService } from './template.service';
+import { DataModule } from './entriesData.module';
 
 @Module({
-  imports: [HttpModule],
+  imports: [HttpModule, DataModule],
   controllers: [AppController],
   providers: [AppService, DocumentService, PdfKitService, FormTemplateService],
 })
